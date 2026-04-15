@@ -4,6 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Aerogulf Smart ERP Checklist</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -316,7 +317,10 @@ label.field-label{font-size:12px;font-weight:600;color:var(--gray7);margin-botto
   <div class="log-drawer">
     <div class="log-head">
       <h3>📋 Activity Log</h3>
-      <button class="log-x" onclick="closeLog()">✕</button>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button onclick="downloadLogExcel()" style="display:flex;align-items:center;gap:5px;padding:5px 10px;background:#ffffff18;border:1px solid #ffffff40;border-radius:6px;color:#fff;font-size:11px;font-weight:600;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#ffffff30'" onmouseout="this.style.background='#ffffff18'">📊 Download Excel</button>
+        <button class="log-x" onclick="closeLog()">✕</button>
+      </div>
     </div>
     <div id="log-entries">
       <p style="padding:30px;text-align:center;color:#64748b;font-size:13px">No activity yet.</p>
@@ -860,6 +864,80 @@ function openSheetConfig(){
 function updateSyncBanner(){
   if(SHEET_URL){ setSyncState('ok','Google Sheets connected — timestamps logging to Sheet'); }
   else { setSyncState('','Not configured — click ⚙️ Sheet Setup in sidebar'); }
+}
+
+// ═══════════════════════════════════════════════════════
+// DOWNLOAD ACTIVITY LOG AS EXCEL
+// ═══════════════════════════════════════════════════════
+function downloadLogExcel() {
+  if (!AL || AL.length === 0) {
+    alert('No activity logged yet. Complete some actions first.');
+    return;
+  }
+
+  // ── 1. Build clean export rows (drop internal _local flag) ──
+  const COLS = [
+    'Timestamp (UTC)', 'Timestamp (UAE)', 'Action', 'Role',
+    'Task', 'Details', 'Employee ID', 'Task ID',
+    'Checklist ID', 'Checklist Name', 'Session ID'
+  ];
+  const exportRows = AL.map(e => {
+    const row = {};
+    COLS.forEach(col => { row[col] = e[col] || ''; });
+    return row;
+  });
+
+  // ── 2. Create workbook ──────────────────────────────────────
+  const wb = XLSX.utils.book_new();
+
+  // ── 3. Logo / header rows prepended above data ──────────────
+  const now      = new Date();
+  const uaeNow   = new Date(now.getTime() + 4 * 3600000)
+                     .toISOString().replace('T', ' ').substring(0, 19) + ' UAE';
+  const empId    = CU ? CU.emp : 'N/A';
+  const userRole = CU ? CU.role : 'N/A';
+
+  const headerMeta = [
+    ['AEROGULF SERVICES', '', '', '', '', '', '', '', '', '', ''],
+    ['Emergency Response Plan — Activity Log', '', '', '', '', '', '', '', '', '', ''],
+    [`Exported by: Employee #${empId}`, '', `Role: ${userRole}`, '', '', '', '', '', '', '', ''],
+    [`Export Time (UAE): ${uaeNow}`, '', '', '', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', '', '', '', ''],   // blank spacer row
+  ];
+
+  // Convert to sheet starting from A1 with the meta rows
+  const ws = XLSX.utils.aoa_to_sheet(headerMeta);
+
+  // Append the actual data rows below (starting at row 6)
+  XLSX.utils.sheet_add_json(ws, exportRows, { origin: 'A6', header: COLS });
+
+  // ── 4. Column widths ─────────────────────────────────────────
+  ws['!cols'] = [
+    { wch: 22 }, // Timestamp UTC
+    { wch: 22 }, // Timestamp UAE
+    { wch: 18 }, // Action
+    { wch: 34 }, // Role
+    { wch: 55 }, // Task
+    { wch: 40 }, // Details
+    { wch: 12 }, // Employee ID
+    { wch: 12 }, // Task ID
+    { wch: 14 }, // Checklist ID
+    { wch: 36 }, // Checklist Name
+    { wch: 44 }, // Session ID
+  ];
+
+  // ── 5. Merge logo cell A1:K1 for visual branding ─────────────
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } },
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'ERP Activity Log');
+
+  // ── 6. Filename & trigger download ───────────────────────────
+  const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+  const fileName = `Aerogulf_ERP_Log_${empId}_${dateStr}.xlsx`;
+  XLSX.writeFile(wb, fileName);
 }
 
 // ═══════════════════════════════════════════════════════
