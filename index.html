@@ -417,7 +417,7 @@ async function logToSheet(row) {
   if (!SHEET_URL) return false;
   setSyncState('busy','Saving to Google Sheets…');
   try {
-    await fetch(SHEET_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(row)});
+    await fetch(SHEET_URL,{method:'POST',mode:'cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(row)});
     setSyncState('ok','Saved to Google Sheets ✓'); return true;
   } catch(e){ setSyncState('err','Sheet save failed — saved locally'); return false; }
 }
